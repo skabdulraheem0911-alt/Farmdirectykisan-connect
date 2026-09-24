@@ -2,13 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Language, GovernmentPrice, ProduceListing } from '../types';
 import { addProduceTranslations, getTranslatedCropName } from '../data/translations';
 import { getCropImageUrl } from '../data/mockData';
-import { GoogleMapView } from './GoogleMapView';
-import { requestCurrentPosition, findNearestAPDistrict } from '../services/locationService';
-import {
-  speechManager,
-  startTeluguSpeechRecognition,
-  parseTeluguVoiceToProduce,
-} from '../services/voiceAssistantService';
 import {
   ArrowLeft,
   Camera,
@@ -23,10 +16,7 @@ import {
   Check,
   MapPin,
   Navigation,
-  ChevronDown,
-  ChevronUp,
-  Volume2,
-  Mic,
+  ExternalLink,
 } from 'lucide-react';
 
 interface AddProduceScreenProps {
@@ -41,7 +31,6 @@ interface AddProduceScreenProps {
     pricePerKg?: number;
     location?: string;
   } | null;
-  onOpenVoiceAssistant?: () => void;
 }
 
 export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
@@ -51,7 +40,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
   onBack,
   onAddProduce,
   prefillData,
-  onOpenVoiceAssistant,
 }) => {
   const [formData, setFormData] = useState({
     cropName: prefillData?.cropName || 'Tomato',
@@ -60,9 +48,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
     location: prefillData?.location || user.village || 'Guntur, Andhra Pradesh',
     negotiable: true,
   });
-
-  const [isVoiceListening, setIsVoiceListening] = useState(false);
-  const [voiceToast, setVoiceToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (prefillData) {
@@ -73,11 +58,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
         pricePerKg: prefillData.pricePerKg ? prefillData.pricePerKg.toString() : prev.pricePerKg,
         location: prefillData.location || prev.location,
       }));
-      setVoiceToast(
-        language === 'te'
-          ? `వాయిస్ అసిస్టెంట్ ద్వారా వివరాలు నమోదు చేయబడ్డాయి: ${prefillData.cropName || ''} ${prefillData.quantity ? prefillData.quantity + ' kg' : ''}`
-          : `Produce details autofilled from Voice: ${prefillData.cropName || ''}`
-      );
     }
   }, [prefillData, language]);
 
@@ -421,108 +401,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
         </div>
       </div>
 
-      {/* Telugu Voice Assistant Prompt Banner for Non-Literate Farmers */}
-      <div className="bg-gradient-to-r from-emerald-800 via-green-800 to-teal-900 rounded-3xl p-4 sm:p-5 text-white shadow-md border border-emerald-600/40 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-              <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm sm:text-base text-white">
-                  రైతు మిత్ర: తెలుగు వాయిస్ సహాయం
-                </h3>
-                <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  వాయిస్ గైడ్
-                </span>
-              </div>
-              <p className="text-xs text-emerald-100/90 font-medium">
-                చదవడం, రాయడం రాకపోయినా బాధపడకండి! మైక్ నొక్కి పంట పేరు, కిలోలు చెప్పండి లేదా సూచనలు వినండి.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              data-telugu-announce="పంట నమోదు సూచనలు వింటున్నారు."
-              onClick={() => {
-                speechManager.speakTelugu(
-                  'రైతు సోదరులారా! మీరు ఏ పంట అమ్మాలనుకుంటున్నారో, ఎన్ని కిలోలు ఉన్నాయో, మరియు కిలో ధర ఎంత పెట్టాలనుకుంటున్నారో మైక్ నొక్కి చెప్పండి. లేదా సూచనలు వింటూ స్క్రీన్ పై బొమ్మలను తాకండి.'
-                );
-              }}
-              className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold flex items-center gap-1.5 border border-white/20 transition-all cursor-pointer"
-            >
-              <Volume2 className="w-4 h-4 text-amber-300" />
-              <span>సూచనలు వినండి</span>
-            </button>
-
-            <button
-              type="button"
-              data-telugu-announce="గొంతుతో పంట నమోదు చేసే బటన్ నొక్కారు."
-              onClick={() => {
-                if (onOpenVoiceAssistant) {
-                  onOpenVoiceAssistant();
-                } else {
-                  setIsVoiceListening(true);
-                  setVoiceToast('వినడానికి సిద్ధంగా ఉంది... మీ పంట పేరు, ఎన్ని కిలోలు, ధర చెప్పండి.');
-                  speechManager.stop();
-                  startTeluguSpeechRecognition(
-                    (transcript) => {
-                      setIsVoiceListening(false);
-                      const parsed = parseTeluguVoiceToProduce(transcript);
-                      if (parsed.cropName || parsed.quantity || parsed.pricePerKg) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          cropName: parsed.cropName || prev.cropName,
-                          quantity: parsed.quantity ? parsed.quantity.toString() : prev.quantity,
-                          pricePerKg: parsed.pricePerKg ? parsed.pricePerKg.toString() : prev.pricePerKg,
-                          location: parsed.location || prev.location,
-                        }));
-                        const feedback = `మీ గొంతు గుర్తించబడింది: ${parsed.cropName || ''} ${parsed.quantity ? parsed.quantity + ' కిలోలు' : ''} ${parsed.pricePerKg ? 'ధర ' + parsed.pricePerKg + ' రూపాయలు' : ''}`;
-                        setVoiceToast(feedback);
-                        speechManager.speakTelugu(feedback);
-                      } else {
-                        setVoiceToast(`మీరు మాట్లాడినది: "${transcript}". దయచేసి వివరాలు సరిచూడండి.`);
-                      }
-                    },
-                    (err) => {
-                      setIsVoiceListening(false);
-                      setVoiceToast(err);
-                    },
-                    () => {
-                      setIsVoiceListening(false);
-                    }
-                  );
-                }
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer ${
-                isVoiceListening
-                  ? 'bg-red-500 text-white animate-pulse'
-                  : 'bg-amber-400 hover:bg-amber-500 text-amber-950'
-              }`}
-            >
-              <Mic className="w-4 h-4" />
-              <span>{isVoiceListening ? 'వింటోంది...' : 'గొంతుతో నమోదు చేయండి'}</span>
-            </button>
-          </div>
-        </div>
-
-        {voiceToast && (
-          <div className="bg-emerald-950/60 rounded-xl px-3.5 py-2 text-xs text-emerald-100 border border-emerald-400/40 flex items-center justify-between">
-            <span>{voiceToast}</span>
-            <button
-              type="button"
-              onClick={() => setVoiceToast(null)}
-              className="text-emerald-300 hover:text-white ml-2 text-xs font-bold cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Card 1: Crop Selection & Camera Photo Capture */}
         <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-xs space-y-5">
@@ -552,19 +430,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                 <label className="block text-xs font-bold text-gray-700">
                   {t.cropName || 'Select Crop'} *
                 </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    speechManager.speakTelugu(
-                      'మీరు ఏ పంట అమ్మాలనుకుంటున్నారో ఎంచుకోండి: టమోటా, ఉల్లిపాయ, మిర్చి, వరి, మొక్కజొన్న లేదా ఇతర పంటలు.'
-                    )
-                  }
-                  className="text-emerald-700 hover:text-emerald-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                  title="వినండి (Listen)"
-                >
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>వినండి</span>
-                </button>
               </div>
               <select
                 value={formData.cropName}
@@ -579,60 +444,51 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
               </select>
             </div>
 
-            {/* Location with Google Maps GPS Access */}
+            {/* Location with GPS Access */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <label className="block text-xs font-bold text-gray-700">
-                    {t.location || 'Farm Location / Mandal'} *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      speechManager.speakTelugu(
-                        'మీ పొలం ఎక్కడుందో గుర్తించడానికి గూగుల్ మ్యాప్స్ GPS బటన్ నొక్కండి లేదా మ్యాప్‌లో పిన్ చేయండి.'
-                      )
-                    }
-                    className="text-emerald-700 hover:text-emerald-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                    title="వినండి (Listen)"
-                  >
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-gray-700">
+                  {t.location || 'Farm Location / Mandal'} *
+                </label>
                 <button
                   type="button"
-                  onClick={async () => {
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      setGpsMessage('Geolocation is not supported by your browser.');
+                      return;
+                    }
                     setIsDetectingGps(true);
                     setGpsMessage(null);
-                    try {
-                      const loc = await requestCurrentPosition();
-                      setFarmCoords({ lat: loc.lat, lng: loc.lng });
-                      setFormData((prev) => ({
-                        ...prev,
-                        location: loc.address || `${loc.district}, Andhra Pradesh`,
-                      }));
-                      setCoordinatesVerified(true);
-                      setShowMapPicker(true);
-                      setGpsMessage(
-                        language === 'te'
-                          ? `లొకేషన్ గుర్తించబడింది: ${loc.district} APMC సమీపంలో`
-                          : `GPS Location verified: ${loc.district} APMC Hub`
-                      );
-                    } catch (err) {
-                      setGpsMessage(
-                        language === 'te'
-                          ? 'GPS యాక్సెస్ విఫలమైంది. దయచేసి బ్రౌజర్ అనుమతులను తనిఖీ చేయండి.'
-                          : 'Unable to access GPS. Please check browser permissions.'
-                      );
-                    } finally {
-                      setIsDetectingGps(false);
-                    }
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        setFarmCoords({ lat, lng });
+                        setCoordinatesVerified(true);
+                        setGpsMessage(
+                          language === 'te'
+                            ? `GPS లొకేషన్ నమోదు చేయబడింది: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`
+                            : `GPS Location verified: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`
+                        );
+                        setIsDetectingGps(false);
+                      },
+                      (err) => {
+                        console.warn('GPS error:', err);
+                        setGpsMessage(
+                          language === 'te'
+                            ? 'GPS యాక్సెస్ విఫలమైంది. దయచేసి బ్రౌజర్ అనుమతులను తనిఖీ చేయండి.'
+                            : 'Unable to access GPS. Please check browser permissions.'
+                        );
+                        setIsDetectingGps(false);
+                      },
+                      { timeout: 8000 }
+                    );
                   }}
                   disabled={isDetectingGps}
                   className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
                 >
                   <Navigation className={`w-3 h-3 ${isDetectingGps ? 'animate-spin' : ''}`} />
-                  <span>{isDetectingGps ? 'Detecting GPS...' : 'Google Maps GPS'}</span>
+                  <span>{isDetectingGps ? 'Detecting GPS...' : 'Auto-Detect GPS'}</span>
                 </button>
               </div>
 
@@ -644,7 +500,7 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                 placeholder={t.locationPlaceholder || 'e.g. Guntur, Andhra Pradesh'}
               />
 
-              {/* Coordinates info pill & Map toggle */}
+              {/* Coordinates info pill & External Map link */}
               <div className="mt-1.5 flex items-center justify-between text-[11px]">
                 <div className="flex items-center gap-1 text-gray-500">
                   <MapPin className="w-3 h-3 text-green-600" />
@@ -659,48 +515,20 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowMapPicker(!showMapPicker)}
-                  className="text-green-700 hover:text-green-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${farmCoords.lat},${farmCoords.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-700 hover:text-green-800 font-bold flex items-center gap-1 cursor-pointer"
                 >
-                  <span>{showMapPicker ? 'Hide Map' : 'Adjust on Google Map'}</span>
-                  {showMapPicker ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
+                  <span>View on Maps</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
 
               {gpsMessage && (
                 <div className="mt-1 text-xs text-emerald-700 bg-emerald-50/80 px-2.5 py-1 rounded-lg border border-emerald-200">
                   {gpsMessage}
-                </div>
-              )}
-
-              {/* Interactive Google Map Picker */}
-              {showMapPicker && (
-                <div className="mt-2.5 space-y-1.5">
-                  <div className="text-[11px] text-gray-500 flex items-center justify-between">
-                    <span>
-                      {language === 'te'
-                        ? 'మీ పొలం సరిగ్గా ఎక్కడుందో మ్యాప్‌లో పిన్ చేయండి:'
-                        : 'Pin your exact farm coordinates on Google Maps:'}
-                    </span>
-                    <span className="text-green-700 font-semibold">Tap to reposition</span>
-                  </div>
-                  <GoogleMapView
-                    center={farmCoords}
-                    zoom={12}
-                    height="220px"
-                    language={language}
-                    selectable={true}
-                    onSelectLocation={(loc) => {
-                      setFarmCoords({ lat: loc.lat, lng: loc.lng });
-                      setFormData((prev) => ({
-                        ...prev,
-                        location: loc.address || `${loc.district}, Andhra Pradesh`,
-                      }));
-                      setCoordinatesVerified(true);
-                    }}
-                  />
                 </div>
               )}
             </div>
@@ -834,19 +662,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                 <label className="block text-xs font-bold text-gray-700">
                   {t.quantity || 'Available Quantity (kg)'} *
                 </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    speechManager.speakTelugu(
-                      'మీ వద్ద ఎంత పంట అందుబాటులో ఉందో కిలోల సంఖ్య రాయండి లేదా చెప్పండి. ఉదాహరణకు 500 కిలోలు.'
-                    )
-                  }
-                  className="text-emerald-700 hover:text-emerald-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                  title="వినండి (Listen)"
-                >
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>వినండి</span>
-                </button>
               </div>
               <div className="relative">
                 <input
@@ -870,19 +685,6 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                 <label className="block text-xs font-bold text-gray-700">
                   {t.pricePerKg || 'Your Price per kg (₹)'} *
                 </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    speechManager.speakTelugu(
-                      'కిలోకు ఎంత ధర కావాలనుకుంటున్నారో చెప్పండి. ప్రభుత్వ మార్కెట్ యార్డు సగటు ధరను కింద చూసి సరసమైన ధర నిర్ణయించండి.'
-                    )
-                  }
-                  className="text-emerald-700 hover:text-emerald-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                  title="వినండి (Listen)"
-                >
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>వినండి</span>
-                </button>
               </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">

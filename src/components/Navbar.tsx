@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Language } from '../types';
-import { Sprout, Globe, LogOut, ShieldCheck, ChevronDown, Check, Mic, Volume2, VolumeX } from 'lucide-react';
+import { Sprout, Globe, LogOut, ShieldCheck, ChevronDown, Check } from 'lucide-react';
 import { getTranslatedUserName, getTranslatedVillageName, SUPPORTED_LANGUAGES } from '../data/translations';
-import { buttonNarrator } from '../services/voiceAssistantService';
 
 interface NavbarProps {
   user: User | null;
@@ -10,7 +9,6 @@ interface NavbarProps {
   onLanguageChange: (lang: Language) => void;
   onLogout: () => void;
   onNavigateHome?: () => void;
-  onOpenVoiceAssistant?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,17 +17,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLanguageChange,
   onLogout,
   onNavigateHome,
-  onOpenVoiceAssistant,
 }) => {
   const [isLangOpen, setIsLangOpen] = useState(false);
-  const [isNarratorOn, setIsNarratorOn] = useState(buttonNarrator.isEnabled);
   const langMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    return buttonNarrator.subscribe(() => {
-      setIsNarratorOn(buttonNarrator.isEnabled);
-    });
-  }, []);
 
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
 
@@ -116,47 +106,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
-        {/* Zone 2 & 3: Actions, Language Switcher, Voice Guide, User Badge */}
+        {/* Zone 2 & 3: Actions, Language Switcher, User Badge */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Prominent Telugu Voice Assistant Button */}
-          {onOpenVoiceAssistant && (
-            <button
-              onClick={onOpenVoiceAssistant}
-              data-telugu-announce="రైతు మిత్ర వాయిస్ అసిస్టెంట్ తెరవబడింది."
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-95 cursor-pointer"
-              title="తెలుగు వాయిస్ అసిస్టెంట్ (మాట్లాడండి / వినండి)"
-            >
-              <Mic className="w-3.5 h-3.5 animate-pulse text-amber-300" />
-              <span className="hidden sm:inline">రైతు మిత్ర AI</span>
-              <span className="sm:hidden">వాయిస్ AI</span>
-              <Volume2 className="w-3 h-3 opacity-80" />
-            </button>
-          )}
-
-          {/* Quick Audio Narration Toggle (Pronounce Clicked Buttons) */}
-          <button
-            onClick={() => buttonNarrator.toggle()}
-            data-skip-narrator="true"
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              isNarratorOn
-                ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-2xs hover:bg-amber-100'
-                : 'bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200'
-            }`}
-            title={isNarratorOn ? 'బటన్ వాయిస్ మార్గదర్శి ఆన్‌లో ఉంది (క్లిక్ చేసి మ్యూట్ చేయవచ్చు)' : 'బటన్ వాయిస్ మార్గదర్శిని ఆన్ చేయండి'}
-          >
-            {isNarratorOn ? (
-              <>
-                <Volume2 className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                <span className="hidden md:inline text-[11px]">బటన్ వాయిస్ ఆన్</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="w-3.5 h-3.5 text-gray-500" />
-                <span className="hidden md:inline text-[11px]">వాయిస్ ఆఫ్</span>
-              </>
-            )}
-          </button>
-
           {/* Multi-Language Dropdown */}
           <div className="relative" ref={langMenuRef}>
             <button

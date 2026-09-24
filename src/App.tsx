@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { User, ProduceListing, Language, Screen, UserType } from './types';
 import { users, governmentPrices, initialProduceList } from './data/mockData';
 import { Navbar } from './components/Navbar';
@@ -11,10 +11,6 @@ import { ListingDetailScreen } from './components/ListingDetailScreen';
 import { ChatScreen } from './components/ChatScreen';
 import { PaymentEscrowScreen } from './components/PaymentEscrowScreen';
 import { DeliveryConfirmationScreen } from './components/DeliveryConfirmationScreen';
-import { TeluguVoiceAssistantModal } from './components/TeluguVoiceAssistantModal';
-import { FloatingVoiceAssistantButton } from './components/FloatingVoiceAssistantButton';
-import { ButtonNarrationBanner } from './components/ButtonNarrationBanner';
-import { buttonNarrator } from './services/voiceAssistantService';
 
 export default function App() {
   const [language, setLanguage] = useState<Language>('en');
@@ -23,45 +19,6 @@ export default function App() {
   const [produce, setProduce] = useState<ProduceListing[]>(initialProduceList);
   const [selectedListing, setSelectedListing] = useState<ProduceListing | null>(null);
   const [chatPartner, setChatPartner] = useState<User | null>(null);
-
-  // Initialize Telugu Button Click Narrator on mount
-  useEffect(() => {
-    buttonNarrator.initGlobalListener();
-  }, []);
-
-  // Telugu AI Voice Assistant State
-  const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
-  const [voiceAssistantMode, setVoiceAssistantMode] = useState<'farmer' | 'buyer' | 'qa'>('farmer');
-  const [prefilledProduce, setPrefilledProduce] = useState<{
-    cropName?: string;
-    quantity?: number;
-    pricePerKg?: number;
-    location?: string;
-  } | null>(null);
-
-  const handleOpenVoiceAssistant = (mode?: 'farmer' | 'buyer' | 'qa') => {
-    if (mode) {
-      setVoiceAssistantMode(mode);
-    } else {
-      setVoiceAssistantMode(currentUser?.type === 'buyer' ? 'buyer' : 'farmer');
-    }
-    setIsVoiceAssistantOpen(true);
-  };
-
-  const handleAutofillProduceFromVoice = (details: {
-    cropName?: string;
-    quantity?: number;
-    pricePerKg?: number;
-    location?: string;
-  }) => {
-    setPrefilledProduce(details);
-    if (!currentUser) {
-      // Set demo farmer if not logged in
-      const demoFarmer = users.find((u) => u.type === 'farmer') || users[0];
-      setCurrentUser(demoFarmer);
-    }
-    setScreen('add-produce');
-  };
 
   // Handle Login from Welcome screen
   const handleLogin = (role: UserType) => {
@@ -136,7 +93,6 @@ export default function App() {
           language={language}
           onLanguageChange={setLanguage}
           onLogout={handleLogout}
-          onOpenVoiceAssistant={() => handleOpenVoiceAssistant()}
           onNavigateHome={() => {
             if (currentUser?.type === 'farmer') {
               setScreen('farmer-dashboard');
@@ -187,7 +143,6 @@ export default function App() {
             onNavigate={handleNavigate}
             onDeleteProduce={handleDeleteProduce}
             onUpdateStatus={handleUpdateStatus}
-            onOpenVoiceAssistant={handleOpenVoiceAssistant}
           />
         )}
 
@@ -199,7 +154,6 @@ export default function App() {
             governmentPrices={governmentPrices}
             onNavigate={handleNavigate}
             onLogout={handleLogout}
-            onOpenVoiceAssistant={handleOpenVoiceAssistant}
           />
         )}
 
@@ -208,8 +162,6 @@ export default function App() {
             language={language}
             user={currentUser}
             governmentPrices={governmentPrices}
-            prefillData={prefilledProduce}
-            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('farmer')}
             onBack={() => setScreen('farmer-dashboard')}
             onAddProduce={handleAddProduce}
           />
@@ -270,27 +222,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Visual Telugu Button Press Speech Notification Banner */}
-      <ButtonNarrationBanner />
-
-      {/* Persistent Telugu Voice Assistant Floating Button */}
-      <FloatingVoiceAssistantButton
-        onClick={() => handleOpenVoiceAssistant()}
-        language={language}
-        userType={currentUser?.type || 'farmer'}
-      />
-
-      {/* Complete Step-by-Step Telugu Voice Assistant Modal */}
-      <TeluguVoiceAssistantModal
-        isOpen={isVoiceAssistantOpen}
-        onClose={() => setIsVoiceAssistantOpen(false)}
-        user={currentUser}
-        language={language}
-        initialMode={voiceAssistantMode}
-        onNavigate={handleNavigate}
-        onAutofillProduce={handleAutofillProduceFromVoice}
-      />
     </div>
   );
 }

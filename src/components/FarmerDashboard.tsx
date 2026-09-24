@@ -12,11 +12,7 @@ import {
   AlertCircle,
   Eye,
   IndianRupee,
-  Mic,
-  Volume2,
-  Sparkles,
 } from 'lucide-react';
-import { speechManager } from '../services/voiceAssistantService';
 
 interface FarmerDashboardProps {
   language: Language;
@@ -26,7 +22,6 @@ interface FarmerDashboardProps {
   onNavigate: (screen: string, listing?: ProduceListing) => void;
   onDeleteProduce?: (id: string) => void;
   onUpdateStatus?: (id: string, status: 'available' | 'sold' | 'pending') => void;
-  onOpenVoiceAssistant?: (mode?: 'farmer' | 'buyer' | 'qa') => void;
 }
 
 export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
@@ -37,7 +32,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   onNavigate,
   onDeleteProduce,
   onUpdateStatus,
-  onOpenVoiceAssistant,
 }) => {
   const t = dashboardTranslations[language] || dashboardTranslations.en;
 
@@ -88,18 +82,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          {onOpenVoiceAssistant && (
-            <button
-              onClick={() => onOpenVoiceAssistant('farmer')}
-              data-telugu-announce="వాయిస్ ద్వారా పంట అమ్మే బటన్ నొక్కారు."
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-amber-400 hover:bg-amber-500 text-amber-950 font-black shadow-md cursor-pointer transition-all hover:scale-102"
-              title="తెలుగు వాయిస్ సహాయంతో పంట అమ్మండి"
-            >
-              <Mic className="w-5 h-5 text-amber-950 animate-pulse" />
-              <span>వాయిస్ తో అమ్మండి</span>
-            </button>
-          )}
-
           <button
             onClick={() => onNavigate('add-produce')}
             data-telugu-announce="కొత్త పంట నమోదు బటన్ నొక్కారు."
@@ -108,56 +90,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
             <PlusCircle className="w-5 h-5 text-green-600" />
             <span>{t.addProduce || 'Add New Produce'}</span>
           </button>
-        </div>
-      </div>
-
-      {/* Telugu Voice Assistant Quick Callout Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-green-900 rounded-3xl p-4 sm:p-5 text-white shadow-md border border-emerald-600/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-            <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm sm:text-base text-white">
-                రైతు మిత్ర: తెలుగు వాయిస్ అసిస్టెంట్
-              </h3>
-              <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                వినండి & మాట్లాడండి
-              </span>
-            </div>
-            <p className="text-xs text-emerald-100/90 font-medium">
-              చదవడం, రాయడం రాకపోయినా బాధపడకండి! పంట నమోదు, ధర నిర్ణయం మరియు కొనుగోలుదారులతో మాట్లాడే విధానం తెలుగులో వినండి.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            data-telugu-announce="రైతు డాష్‌బోర్డ్ మార్గదర్శక సూచనలు వింటున్నారు."
-            onClick={() => {
-              speechManager.speakTelugu(
-                'రైతు సోదరులారా స్వాగతం! కొత్త పంటను జాబితా చేయడానికి లేదా విక్రయించడానికి వాయిస్ అసిస్టెంట్ బటన్ నొక్కి మాట్లాడండి. మేము మీకు ప్రతి అడుగులో సహాయం చేస్తాము.'
-              );
-            }}
-            className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold flex items-center gap-1.5 border border-white/20 transition-all cursor-pointer"
-          >
-            <Volume2 className="w-4 h-4 text-amber-300" />
-            <span>సూచనలు వినండి</span>
-          </button>
-
-          {onOpenVoiceAssistant && (
-            <button
-              type="button"
-              data-telugu-announce="రైతు మిత్ర వాయిస్ అసిస్టెంట్ ప్రారంభించే బటన్ నొక్కారు."
-              onClick={() => onOpenVoiceAssistant('farmer')}
-              className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              <Mic className="w-4 h-4" />
-              <span>వాయిస్ ప్రారంభించండి</span>
-            </button>
-          )}
         </div>
       </div>
 

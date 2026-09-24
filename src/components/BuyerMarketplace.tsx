@@ -1,12 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, ProduceListing, Language, GovernmentPrice } from '../types';
 import { marketplaceTranslations, getTranslatedCropName, getTranslatedVillageName, getTranslatedUserName } from '../data/translations';
-import { GoogleMapView } from './GoogleMapView';
-import { requestCurrentPosition, calculateDistance } from '../services/locationService';
-import {
-  speechManager,
-  startTeluguSpeechRecognition,
-} from '../services/voiceAssistantService';
 import {
   Search,
   Filter,
@@ -21,9 +15,19 @@ import {
   Map as MapIcon,
   Navigation,
   Compass,
-  Volume2,
-  Mic,
+  ExternalLink,
 } from 'lucide-react';
+
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
 interface BuyerMarketplaceProps {
   language: Language;
@@ -32,7 +36,6 @@ interface BuyerMarketplaceProps {
   governmentPrices: GovernmentPrice[];
   onNavigate: (screen: string, listing?: ProduceListing) => void;
   onLogout: () => void;
-  onOpenVoiceAssistant?: (mode?: 'farmer' | 'buyer' | 'qa') => void;
 }
 
 export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
@@ -41,7 +44,6 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
   produce,
   governmentPrices,
   onNavigate,
-  onOpenVoiceAssistant,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -51,20 +53,26 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
     user.lat && user.lng ? { lat: user.lat, lng: user.lng, district: user.village } : null
   );
   const [isLocatingBuyer, setIsLocatingBuyer] = useState(false);
-  const [isVoiceSearching, setIsVoiceSearching] = useState(false);
 
   const t = marketplaceTranslations[language] || marketplaceTranslations.en;
 
-  const handleRequestLocationAccess = async () => {
-    setIsLocatingBuyer(true);
-    try {
-      const loc = await requestCurrentPosition();
-      setBuyerLocation({ lat: loc.lat, lng: loc.lng, district: loc.district });
-    } catch (err) {
-      console.warn('Location access error:', err);
-    } finally {
-      setIsLocatingBuyer(false);
+  const handleRequestLocationAccess = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
     }
+    setIsLocatingBuyer(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBuyerLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setIsLocatingBuyer(false);
+      },
+      (err) => {
+        console.warn('Location access error:', err);
+        setIsLocatingBuyer(false);
+      },
+      { timeout: 8000 }
+    );
   };
 
   // Filter and search
@@ -97,8 +105,8 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
       list = [...list].sort((a, b) => b.quantity - a.quantity);
     } else if (sortBy === 'nearest' && buyerLocation) {
       list = [...list].sort((a, b) => {
-        const distA = calculateDistance(buyerLocation.lat, buyerLocation.lng, a.lat || 16.3067, a.lng || 80.4365);
-        const distB = calculateDistance(buyerLocation.lat, buyerLocation.lng, b.lat || 16.3067, b.lng || 80.4365);
+        const distA = calculateHaversineDistance(buyerLocation.lat, buyerLocation.lng, a.lat || 16.3067, a.lng || 80.4365);
+        const distB = calculateHaversineDistance(buyerLocation.lat, buyerLocation.lng, b.lat || 16.3067, b.lng || 80.4365);
         return distA - distB;
       });
     }
@@ -191,60 +199,10 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
         </div>
       </div>
 
-      {/* Telugu Voice Assistant Banner for Buyers */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-green-800 rounded-3xl p-4 sm:p-5 text-white shadow-md border border-emerald-600/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-            <Volume2 className="w-6 h-6 text-amber-300 animate-bounce" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm sm:text-base text-white">
-                కొనుగోలుదారుల వాయిస్ మార్గదర్శి (Audio Buying Guide)
-              </h3>
-              <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                వినండి
-              </span>
-            </div>
-            <p className="text-xs text-emerald-100/90 font-medium">
-              చదవడం రాకపోయినా ఫరవాలేదు! పంటను ఎంచుకోవడం, రైతుతో మాట్లాడటం, మరియు ఎస్క్రో భద్రత గురించి వినండి.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            data-telugu-announce="కొనుగోలుదారు మార్గదర్శక సూచనలు వింటున్నారు."
-            onClick={() => {
-              speechManager.speakTelugu(
-                'కొనుగోలుదారులారా స్వాగతం! మీకు కావాల్సిన తాజా పంటను మార్కెట్ లేదా గూగుల్ మ్యాప్స్‌లో చూడండి. రైతుతో నేరుగా చాట్ చేసి ధర మాట్లాడండి. మీరు చెల్లించిన డబ్బు ఎస్క్రో ఖాతాలో సురక్షితంగా ఉంటుంది. పంట చేతికి అంది నాణ్యత చూసుకున్న తర్వాత మాత్రమే ఓటీపీ ఇచ్చి ధృవీకరించండి.'
-              );
-            }}
-            className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold flex items-center gap-1.5 border border-white/20 transition-all cursor-pointer"
-          >
-            <Volume2 className="w-4 h-4 text-amber-300" />
-            <span>సూచనలు వినండి</span>
-          </button>
-
-          {onOpenVoiceAssistant && (
-            <button
-              type="button"
-              data-telugu-announce="కొనుగోలుదారు వాయిస్ అసిస్టెంట్ బటన్ నొక్కారు."
-              onClick={() => onOpenVoiceAssistant('buyer')}
-              className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              <Mic className="w-4 h-4" />
-              <span>వాయిస్ అసిస్టెంట్</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Search & Category Filter Controls */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search box with Voice input */}
+          {/* Search box */}
           <div className="relative flex-1">
             <Search className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -252,37 +210,8 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t.search || 'Search crops, location, or farmer...'}
-              className="w-full h-11 pl-11 pr-11 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm outline-none transition-all text-gray-900"
+              className="w-full h-11 pl-11 pr-4 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm outline-none transition-all text-gray-900"
             />
-            {/* Mic button for voice search */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsVoiceSearching(true);
-                speechManager.stop();
-                startTeluguSpeechRecognition(
-                  (transcript) => {
-                    setIsVoiceSearching(false);
-                    setSearchTerm(transcript);
-                    speechManager.speakTelugu(`${transcript} వెతుకుతున్నాము.`);
-                  },
-                  () => {
-                    setIsVoiceSearching(false);
-                  },
-                  () => {
-                    setIsVoiceSearching(false);
-                  }
-                );
-              }}
-              className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors cursor-pointer ${
-                isVoiceSearching
-                  ? 'bg-red-500 text-white animate-pulse'
-                  : 'text-gray-400 hover:text-emerald-700 hover:bg-gray-100'
-              }`}
-              title="Speak to Search (Telugu)"
-            >
-              <Mic className="w-4 h-4" />
-            </button>
           </div>
 
           {/* Sort dropdown */}
@@ -383,48 +312,83 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
         </div>
       </div>
 
-      {/* View Content: Google Maps View vs Grid Cards */}
+      {/* View Content: Farm Network Directory vs Grid Cards */}
       {viewMode === 'map' ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>
+            <span className="font-semibold text-gray-700">
               {language === 'te'
-                ? 'ఆంధ్రప్రదేశ్ APMC గూగుల్ మ్యాప్స్ రైతు స్థానాలు'
+                ? 'ఆంధ్రప్రదేశ్ APMC రైతు స్థానాలు & నెట్‌వర్క్'
                 : language === 'hi'
-                ? 'आंध्र प्रदेश APMC गूगल मैप्स किसान स्थान'
-                : 'Andhra Pradesh APMC Google Maps Farm Network'}{' '}
+                ? 'आंध्र प्रदेश APMC किसान स्थान और नेटवर्क'
+                : 'Andhra Pradesh APMC Farm Network & Locations'}{' '}
               ({filteredProduce.length} {language === 'te' ? 'పొలాలు' : 'farms'})
             </span>
             <span className="text-emerald-700 font-bold">
               {buyerLocation
-                ? `📍 Centered near ${buyerLocation.district || 'Your GPS Location'}`
-                : 'Click "Google Maps GPS" to center on your location'}
+                ? `📍 Centered near your GPS Location`
+                : 'Showing all registered farm districts'}
             </span>
           </div>
 
-          <GoogleMapView
-            height="520px"
-            language={language}
-            interactive={true}
-            showUserLocationButton={true}
-            center={
-              buyerLocation
-                ? { lat: buyerLocation.lat, lng: buyerLocation.lng }
-                : { lat: 16.3067, lng: 80.4365 }
-            }
-            zoom={buyerLocation ? 10 : 8}
-            onMarkerClick={(item) => onNavigate('listing-detail', item)}
-            markers={filteredProduce.map((p) => ({
-              id: p.id,
-              lat: p.lat || 16.3067,
-              lng: p.lng || 80.4365,
-              title: p.farmerName,
-              subtitle: p.farmerVillage,
-              cropName: p.cropName,
-              price: p.pricePerKg,
-              listing: p,
-            }))}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProduce.map((p) => {
+              const farmLat = p.lat || 16.3067;
+              const farmLng = p.lng || 80.4365;
+              const dist = buyerLocation
+                ? calculateHaversineDistance(buyerLocation.lat, buyerLocation.lng, farmLat, farmLng)
+                : null;
+
+              return (
+                <div
+                  key={p.id}
+                  className="bg-white rounded-2xl border border-gray-200 hover:border-emerald-400 p-4 shadow-xs hover:shadow-md transition-all space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded-md">
+                        {p.cropName}
+                      </span>
+                      <h4 className="font-bold text-gray-900 mt-1">{p.farmerName}</h4>
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span>{getTranslatedVillageName(p.farmerVillage, language)}, Andhra Pradesh</span>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-black text-gray-900">₹{p.pricePerKg}</span>
+                      <span className="text-[10px] text-gray-400">/kg</span>
+                      {dist !== null && (
+                        <div className="text-[11px] font-bold text-emerald-700 mt-0.5">
+                          {dist} km away
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('listing-detail', p)}
+                      className="flex-1 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all text-center cursor-pointer"
+                    >
+                      View Crop Details
+                    </button>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Open farm location in Google Maps"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                      <ExternalLink className="w-3 h-3 text-gray-400" />
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         /* Produce Grid */
@@ -460,7 +424,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
               {filteredProduce.map((listing) => {
                 const pricingTag = getPricingTag(listing.cropName, listing.pricePerKg);
                 const distanceKm = buyerLocation
-                  ? calculateDistance(
+                  ? calculateHaversineDistance(
                       buyerLocation.lat,
                       buyerLocation.lng,
                       listing.lat || 16.3067,

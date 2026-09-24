@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { User, ProduceListing, Language, GovernmentPrice } from '../types';
 import { cropDetailsTranslations, getTranslatedCropName, getTranslatedVillageName, getTranslatedUserName } from '../data/translations';
-import { GoogleMapView } from './GoogleMapView';
-import { calculateDistance, requestCurrentPosition } from '../services/locationService';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -19,6 +17,17 @@ import {
   Navigation,
   ExternalLink,
 } from 'lucide-react';
+
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
 interface ListingDetailScreenProps {
   language: Language;
@@ -50,17 +59,24 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
 
-  const handleCalculateDistance = async () => {
-    setIsCalculatingDistance(true);
-    try {
-      const loc = await requestCurrentPosition();
-      const dist = calculateDistance(loc.lat, loc.lng, farmLat, farmLng);
-      setDistanceKm(dist);
-    } catch (err) {
-      console.warn('Geolocation error:', err);
-    } finally {
-      setIsCalculatingDistance(false);
+  const handleCalculateDistance = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
     }
+    setIsCalculatingDistance(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const dist = calculateHaversineDistance(pos.coords.latitude, pos.coords.longitude, farmLat, farmLng);
+        setDistanceKm(dist);
+        setIsCalculatingDistance(false);
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setIsCalculatingDistance(false);
+      },
+      { timeout: 8000 }
+    );
   };
 
   // Comparison logic
@@ -341,27 +357,28 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
               </a>
             </div>
 
-            {/* Embedded Google Map Component */}
-            <div className="rounded-2xl overflow-hidden border border-gray-200">
-              <GoogleMapView
-                center={{ lat: farmLat, lng: farmLng }}
-                zoom={11}
-                height="190px"
-                language={language}
-                interactive={true}
-                showUserLocationButton={true}
-                markers={[
-                  {
-                    id: listing.id,
-                    lat: farmLat,
-                    lng: farmLng,
-                    title: listing.farmerName,
-                    subtitle: listing.farmerVillage,
-                    cropName: listing.cropName,
-                    price: listing.pricePerKg,
-                  },
-                ]}
-              />
+            {/* Farm Location Card */}
+            <div className="rounded-2xl overflow-hidden border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-green-50/30 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-gray-800">
+                    {getTranslatedVillageName(listing.farmerVillage, language)}, Andhra Pradesh
+                  </div>
+                  <div className="text-[11px] text-gray-500 font-mono mt-0.5">
+                    {farmLat.toFixed(4)}° N, {farmLng.toFixed(4)}° E
+                  </div>
+                </div>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{language === 'te' ? 'మ్యాప్‌లో చూడండి' : 'View on Maps'}</span>
+                  <ExternalLink className="w-3 h-3 opacity-80" />
+                </a>
+              </div>
             </div>
 
             {/* GPS Distance Calculator */}
