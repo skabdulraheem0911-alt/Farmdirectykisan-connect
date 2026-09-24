@@ -2,9 +2,8 @@
   "name": "FarmConnect - Direct Market Access",
   "description": "Farmers Market app connecting farmers and buyers with transparent Andhra Pradesh APMC pricing, multi-language support (Telugu, Hindi, Tamil, Kannada, Malayalam, English), real-time camera crop photo capture, negotiation chat, secure escrow payment, and delivery confirmation.",
   "requestFramePermissions": [
-    "camera",
-    "geolocation"
+    "camera"
   ],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
 

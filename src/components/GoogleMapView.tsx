@@ -1,8 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, Compass, ExternalLink, ShieldCheck, CheckCircle2, X } from 'lucide-react';
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  Pin,
+  InfoWindow,
+} from '@vis.gl/react-google-maps';
+import {
+  MapPin,
+  Navigation,
+  Compass,
+  ExternalLink,
+  ShieldCheck,
+  CheckCircle2,
+  X,
+  Key,
+  Layers,
+  Check,
+} from 'lucide-react';
 import { ProduceListing, Language } from '../types';
 import { getTranslatedCropName, getTranslatedVillageName } from '../data/translations';
-import { requestCurrentPosition, GeoLocation, findNearestAPDistrict } from '../services/locationService';
+import { requestCurrentPosition, GeoLocation } from '../services/locationService';
 
 export interface MapMarkerItem {
   id: string;
@@ -50,6 +68,16 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
   const [currentCenter, setCurrentCenter] = useState(center);
   const [selectedPin, setSelectedPin] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Read API Key from environment or localStorage
+  const envKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '';
+  const [customKey, setCustomKey] = useState<string>(() => {
+    return localStorage.getItem('farmdirect_google_maps_api_key') || '';
+  });
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [tempKeyInput, setTempKeyInput] = useState('');
+
+  const effectiveApiKey = envKey.trim() || customKey.trim();
+
   // Update center if props change
   useEffect(() => {
     setCurrentCenter(center);
@@ -85,7 +113,6 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     }
   };
 
-  // Quick district selection when selectable mode is active
   const handleSelectDistrict = (lat: number, lng: number, name: string) => {
     setCurrentCenter({ lat, lng });
     setSelectedPin({ lat, lng });
@@ -99,10 +126,21 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     }
   };
 
-  // OpenStreetMap Bounding Box coordinates (100% Free Open Source Map, No Paid API needed)
-  const delta = zoom >= 12 ? 0.08 : zoom >= 10 ? 0.2 : 0.6;
-  const bbox = `${currentCenter.lng - delta},${currentCenter.lat - delta},${currentCenter.lng + delta},${currentCenter.lat + delta}`;
-  const osmEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${currentCenter.lat},${currentCenter.lng}`;
+  const handleSaveCustomKey = () => {
+    if (tempKeyInput.trim()) {
+      localStorage.setItem('farmdirect_google_maps_api_key', tempKeyInput.trim());
+      setCustomKey(tempKeyInput.trim());
+    } else {
+      localStorage.removeItem('farmdirect_google_maps_api_key');
+      setCustomKey('');
+    }
+    setShowKeyModal(false);
+  };
+
+  // Direct Google Maps Search & Direction URLs
+  const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${currentCenter.lat},${currentCenter.lng}`;
+  const googleMapsDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${currentCenter.lat},${currentCenter.lng}`;
+  const googleMapsEmbedUrl = `https://maps.google.com/maps?q=${currentCenter.lat},${currentCenter.lng}&z=${zoom}&output=embed`;
 
   return (
     <div
@@ -112,33 +150,57 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       {/* Top Location Bar / GPS Trigger */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none gap-2">
         <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-gray-200 shadow-md text-xs font-semibold text-gray-800 flex items-center gap-1.5 pointer-events-auto">
-          <MapPin className="w-3.5 h-3.5 text-green-600" />
-          <span>
+          <MapPin className="w-3.5 h-3.5 text-red-600" />
+          <span className="font-bold text-gray-900">
             {language === 'te'
-              ? 'ఆంధ్రప్రదేశ్ APMC మార్కెట్ మ్యాప్ (ఉచితం)'
+              ? 'గూగుల్ మ్యాప్స్ (Google Maps)'
               : language === 'hi'
-              ? 'आंध्र प्रदेश APMC कृषि मानचित्र'
-              : 'Andhra Pradesh APMC Farm Map (Free)'}
+              ? 'गूगल मैप्स (Google Maps)'
+              : 'Google Maps Farm Location'}
           </span>
+          {effectiveApiKey ? (
+            <span className="bg-green-100 text-green-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+              <Check className="w-2.5 h-2.5" /> SDK Active
+            </span>
+          ) : (
+            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+              Google Maps Live
+            </span>
+          )}
         </div>
 
-        {showUserLocationButton && (
+        <div className="flex items-center gap-1.5 pointer-events-auto">
           <button
             type="button"
-            onClick={handleGetLocation}
-            disabled={isLocating}
-            data-telugu-announce="జీపీఎస్ స్థానాన్ని గుర్తించే బటన్ నొక్కారు."
-            className="bg-white hover:bg-green-50 text-green-700 px-3 py-1.5 rounded-xl border border-green-200 shadow-md text-xs font-bold flex items-center gap-1.5 pointer-events-auto cursor-pointer transition-all hover:scale-102 active:scale-98 disabled:opacity-50"
-            title="Access GPS Location (Free Browser Geolocation)"
+            onClick={() => {
+              setTempKeyInput(effectiveApiKey);
+              setShowKeyModal(true);
+            }}
+            data-telugu-announce="గూగుల్ మ్యాప్స్ కీ సెట్టింగ్స్ బటన్ నొక్కారు."
+            className="bg-white hover:bg-gray-50 text-gray-700 p-2 rounded-xl border border-gray-200 shadow-md text-xs font-bold transition-all cursor-pointer"
+            title="Google Maps API Key Settings"
           >
-            <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-green-600' : 'text-green-600'}`} />
-            <span>
-              {isLocating
-                ? language === 'te' ? 'లొకేషన్ గుర్తించబడుతోంది...' : 'Locating GPS...'
-                : language === 'te' ? 'నా స్థానం (GPS)' : 'Locate My Farm / Me'}
-            </span>
+            <Key className="w-3.5 h-3.5 text-amber-600" />
           </button>
-        )}
+
+          {showUserLocationButton && (
+            <button
+              type="button"
+              onClick={handleGetLocation}
+              disabled={isLocating}
+              data-telugu-announce="గూగుల్ మ్యాప్స్‌లో మీ స్థానాన్ని గుర్తించే జీపీఎస్ బటన్ నొక్కారు."
+              className="bg-white hover:bg-green-50 text-green-700 px-3 py-1.5 rounded-xl border border-green-200 shadow-md text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all hover:scale-102 active:scale-98 disabled:opacity-50"
+              title="Locate via GPS"
+            >
+              <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-green-600' : 'text-green-600'}`} />
+              <span>
+                {isLocating
+                  ? language === 'te' ? 'లొకేషన్...' : 'Locating GPS...'
+                  : language === 'te' ? 'నా స్థానం (GPS)' : 'Locate Farm (GPS)'}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {locationError && (
@@ -147,25 +209,98 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
         </div>
       )}
 
-      {/* 100% Free OpenStreetMap Embedded Interactive Frame (Zero paid API keys, Zero billing) */}
-      <iframe
-        title="Andhra Pradesh Agricultural Map (OpenStreetMap - Free)"
-        width="100%"
-        height="100%"
-        style={{ border: 0 }}
-        loading="lazy"
-        allowFullScreen
-        referrerPolicy="no-referrer-when-downgrade"
-        src={osmEmbedUrl}
-        className="w-full h-full pointer-events-auto"
-      />
+      {/* Map Rendering: Official Google Maps Platform SDK if API Key is present, or Google Maps Interactive View */}
+      {effectiveApiKey ? (
+        <APIProvider apiKey={effectiveApiKey} solutionChannel="GMP_AIS_applet">
+          <Map
+            defaultCenter={currentCenter}
+            center={currentCenter}
+            defaultZoom={zoom}
+            gestureHandling={'greedy'}
+            disableDefaultUI={!interactive}
+            style={{ width: '100%', height: '100%' }}
+            mapId={'farmdirect_google_map'}
+          >
+            {/* Farm produce markers */}
+            {markers.map((m) => (
+              <AdvancedMarker
+                key={m.id}
+                position={{ lat: m.lat, lng: m.lng }}
+                onClick={() => {
+                  setSelectedMarker(m);
+                  setCurrentCenter({ lat: m.lat, lng: m.lng });
+                }}
+                title={m.title}
+              >
+                <Pin background={'#15803d'} glyphColor={'#ffffff'} borderColor={'#166534'}>
+                  <span className="text-[10px] font-bold text-white">🌾</span>
+                </Pin>
+              </AdvancedMarker>
+            ))}
 
-      {/* Interactive Markers List Overlay (Farm listings and quick selection) */}
+            {/* User GPS location marker */}
+            {userLocation && (
+              <AdvancedMarker
+                position={{ lat: userLocation.lat, lng: userLocation.lng }}
+                title="Your Current Location"
+              >
+                <Pin background={'#2563eb'} glyphColor={'#ffffff'} borderColor={'#1e3a8a'} />
+              </AdvancedMarker>
+            )}
+
+            {/* Farm info window */}
+            {selectedMarker && (
+              <InfoWindow
+                position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+                onCloseClick={() => setSelectedMarker(null)}
+              >
+                <div className="p-1 max-w-[200px]">
+                  <h4 className="font-bold text-xs text-gray-900">
+                    {getTranslatedCropName(selectedMarker.cropName || selectedMarker.title, language)}
+                  </h4>
+                  <p className="text-[10px] text-gray-600">
+                    {getTranslatedVillageName(selectedMarker.subtitle || 'Andhra Pradesh', language)}
+                  </p>
+                  {selectedMarker.price && (
+                    <p className="text-xs font-black text-green-700 mt-1">
+                      ₹{selectedMarker.price} / kg
+                    </p>
+                  )}
+                  {selectedMarker.listing && onMarkerClick && (
+                    <button
+                      type="button"
+                      onClick={() => onMarkerClick(selectedMarker.listing!)}
+                      className="mt-1.5 w-full py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                    >
+                      {language === 'te' ? 'వివరాలు చూడండి' : 'View Listing'}
+                    </button>
+                  )}
+                </div>
+              </InfoWindow>
+            )}
+          </Map>
+        </APIProvider>
+      ) : (
+        /* Google Maps Interactive Frame */
+        <iframe
+          title="Google Maps Farm Location"
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          referrerPolicy="no-referrer-when-downgrade"
+          src={googleMapsEmbedUrl}
+          className="w-full h-full pointer-events-auto"
+        />
+      )}
+
+      {/* Interactive Crop Listings Quick Selector on Top of Google Map */}
       {markers.length > 0 && (
         <div className="absolute top-12 left-3 z-10 flex flex-wrap gap-1.5 max-w-[85%] pointer-events-auto">
           <div className="bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-            <span>{markers.length} {language === 'te' ? 'పొలాలు మ్యాప్‌లో' : 'Farms on Map'}</span>
+            <span>{markers.length} {language === 'te' ? 'పొలాలు' : 'Farms'}</span>
           </div>
 
           {markers.slice(0, 4).map((m) => (
@@ -176,7 +311,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
                 setCurrentCenter({ lat: m.lat, lng: m.lng });
                 setSelectedMarker(m);
               }}
-              data-telugu-announce={`${m.cropName || m.title} పంట స్థానం ఎంచుకున్నారు.`}
+              data-telugu-announce={`${m.cropName || m.title} పంట పొలం లొకేషన్ ఎంచుకున్నారు.`}
               className={`px-2 py-1 rounded-lg text-[11px] font-bold shadow-xs border transition-all cursor-pointer flex items-center gap-1 ${
                 selectedMarker?.id === m.id
                   ? 'bg-green-700 text-white border-green-800 scale-105'
@@ -191,7 +326,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
         </div>
       )}
 
-      {/* Selectable District Quick Buttons for Farmers choosing their farm location */}
+      {/* Selectable District Quick Buttons for Farmers */}
       {selectable && (
         <div className="absolute top-12 left-3 right-3 z-10 pointer-events-auto flex items-center gap-1.5 overflow-x-auto pb-1">
           {[
@@ -221,7 +356,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       )}
 
       {/* Selected Marker Detail Card Pop-up */}
-      {selectedMarker && (
+      {selectedMarker && !effectiveApiKey && (
         <div className="absolute bottom-16 left-3 right-3 z-20 pointer-events-auto bg-white/95 backdrop-blur-md p-3 rounded-2xl border border-green-300 shadow-xl max-w-sm mx-auto">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -270,10 +405,10 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
         </div>
       )}
 
-      {/* Bottom Floating Hub Indicator (Free Navigation) */}
+      {/* Bottom Floating Google Maps Hub Bar with Directions & App Link */}
       <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-gray-200 shadow-lg text-xs pointer-events-auto">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-xl bg-green-100 text-green-700 flex items-center justify-center font-bold">
+          <div className="w-7 h-7 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold">
             <Compass className="w-4 h-4" />
           </div>
           <div>
@@ -281,7 +416,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
               <span>
                 {userLocation?.district
                   ? `${userLocation.district} Hub`
-                  : 'Andhra Pradesh Mandi Network'}
+                  : 'Andhra Pradesh Farm Network'}
               </span>
               <ShieldCheck className="w-3.5 h-3.5 text-green-600" />
             </div>
@@ -293,18 +428,87 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
 
         <div className="flex items-center gap-1.5">
           <a
-            href={`https://www.openstreetmap.org/?mlat=${currentCenter.lat}&mlon=${currentCenter.lng}#map=12/${currentCenter.lat}/${currentCenter.lng}`}
+            href={googleMapsDirectionsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            data-telugu-announce="ఉచిత ఓపెన్‌స్ట్రీట్‌మ్యాప్‌లో చూసే బటన్ నొక్కారు."
-            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-            title="OpenStreetMap (100% Free Open Map)"
+            data-telugu-announce="గూగుల్ మ్యాప్స్‌లో దిశలు చూసే బటన్ నొక్కారు."
+            className="px-3 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+            title="Directions on Google Maps"
           >
-            <span>OpenStreetMap</span>
-            <ExternalLink className="w-3 h-3 text-gray-500" />
+            <span>{language === 'te' ? 'దిశలు (Directions)' : 'Directions'}</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+
+          <a
+            href={googleMapsSearchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-telugu-announce="గూగుల్ మ్యాప్స్ యాప్‌లో చూసే బటన్ నొక్కారు."
+            className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center gap-1 border border-red-200 shadow-xs transition-all cursor-pointer"
+            title="Open in Google Maps App"
+          >
+            <span>Google Maps</span>
+            <ExternalLink className="w-3 h-3 text-red-600" />
           </a>
         </div>
       </div>
+
+      {/* Google Maps API Key Setup Modal */}
+      {showKeyModal && (
+        <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-gray-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+                  <Key className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-sm text-gray-900">
+                  Google Maps API Key
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600">
+              {language === 'te'
+                ? 'మీ గూగుల్ మ్యాప్స్ API కీ నమోదు చేయండి లేదా నేరుగా ఉచిత లైవ్ మ్యాప్ ఉపయోగించండి.'
+                : 'Enter your Google Maps Platform API Key to activate full Interactive Maps SDK.'}
+            </p>
+
+            <input
+              type="password"
+              value={tempKeyInput}
+              onChange={(e) => setTempKeyInput(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono focus:border-green-600 focus:outline-none"
+            />
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSaveCustomKey}
+                data-telugu-announce="గూగుల్ మ్యాప్స్ కీ సేవ్ చేసే బటన్ నొక్కారు."
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all"
+              >
+                {language === 'te' ? 'కీ సేవ్ చేయండి' : 'Save Key'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(false)}
+                className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                {language === 'te' ? 'రద్దు' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

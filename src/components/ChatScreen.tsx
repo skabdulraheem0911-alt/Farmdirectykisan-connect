@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, ProduceListing, Language, ChatMessage } from '../types';
 import { chatTranslations, getTranslatedCropName, getTranslatedVillageName } from '../data/translations';
-import { generateChatResponse } from '../services/aiResponses';
+import { generateChatResponse } from '../services/chatResponses';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
@@ -232,7 +232,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            data-telugu-announce="వెనుకకు వెళ్లే బటన్ నొక్కారు."
             className="p-1.5 rounded-lg hover:bg-white/10 text-white cursor-pointer transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -265,7 +264,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           {partner?.phone && (
             <a
               href={`tel:${partner.phone}`}
-              data-telugu-announce="ఫోన్ కాల్ చేసే బటన్ నొక్కారు."
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
               title="Call"
             >
@@ -274,7 +272,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           )}
           <button
             onClick={() => onNavigate('payment-escrow', listing)}
-            data-telugu-announce="ఎస్క్రో ద్వారా ఇప్పుడే కొనుగోలు చేసే బటన్ నొక్కారు."
             className="px-3 py-1.5 rounded-xl bg-white text-green-800 text-xs font-bold hover:bg-green-50 shadow-sm cursor-pointer transition-transform hover:scale-102 flex items-center gap-1"
           >
             <CreditCard className="w-3.5 h-3.5" />
@@ -401,14 +398,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <button
               onClick={handleMakeOffer}
               disabled={!offerPrice}
-              data-telugu-announce="ధర ఆఫర్ సమర్పించే బటన్ నొక్కారు."
               className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-xs"
             >
               {t.send || 'Submit Offer'}
             </button>
             <button
               onClick={() => setShowOfferBox(false)}
-              data-telugu-announce="ఆఫర్ బాక్స్ మూసివేసే బటన్ నొక్కారు."
               className="p-1.5 text-gray-400 hover:text-gray-600 cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -422,7 +417,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         {listing.negotiable && (
           <button
             onClick={() => setShowOfferBox(!showOfferBox)}
-            data-telugu-announce="ధర ఆఫర్ లేదా బేరం పెట్టే బటన్ నొక్కారు."
             title={t.makeOffer || 'Make Price Offer'}
             className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
           >
@@ -456,7 +450,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 }, 1500);
               }
             }}
-            data-telugu-announce="వాయిస్ నోట్ రికార్డ్ చేసే బటన్ నొక్కారు."
             title="Voice Note"
             className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors cursor-pointer ${
               isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-gray-600'
@@ -469,7 +462,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         <button
           onClick={() => handleSend()}
           disabled={!inputText.trim()}
-          data-telugu-announce="సందేశం పంపే బటన్ నొక్కారు."
           className="w-11 h-11 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white flex items-center justify-center cursor-pointer shadow-md shadow-green-600/20 transition-all shrink-0"
         >
           <Send className="w-4 h-4" />
