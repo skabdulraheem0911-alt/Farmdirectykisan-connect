@@ -17,17 +17,14 @@ import {
   Navigation,
   ExternalLink,
 } from 'lucide-react';
-
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
+import {
+  calculateHaversineDistance,
+  getInitialUserLocation,
+  requestUserGeolocation,
+  saveUserLocation,
+  AP_DISTRICT_LOCATIONS,
+  LocationInfo,
+} from '../utils/locationHelper';
 
 interface ListingDetailScreenProps {
   language: Language;
@@ -56,27 +53,57 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const farmLat = listing.lat || farmer?.lat || 16.3067;
   const farmLng = listing.lng || farmer?.lng || 80.4365;
 
-  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [userLocation, setUserLocation] = useState<LocationInfo>(() => getInitialUserLocation(user));
+  const [distanceKm, setDistanceKm] = useState<number>(() => {
+    const loc = getInitialUserLocation(user);
+    return calculateHaversineDistance(loc.lat, loc.lng, farmLat, farmLng);
+  });
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
+  const [locationStatusMessage, setLocationStatusMessage] = useState<string | null>(null);
+  const [showDistrictPicker, setShowDistrictPicker] = useState(false);
 
-  const handleCalculateDistance = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
+  const handleCalculateDistance = async () => {
     setIsCalculatingDistance(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const dist = calculateHaversineDistance(pos.coords.latitude, pos.coords.longitude, farmLat, farmLng);
-        setDistanceKm(dist);
-        setIsCalculatingDistance(false);
-      },
-      (err) => {
-        console.warn('Geolocation error:', err);
-        setIsCalculatingDistance(false);
-      },
-      { timeout: 8000 }
-    );
+    setLocationStatusMessage(null);
+    try {
+      const loc = await requestUserGeolocation(user);
+      setUserLocation(loc);
+      const dist = calculateHaversineDistance(loc.lat, loc.lng, farmLat, farmLng);
+      setDistanceKm(dist);
+      if (loc.source === 'gps') {
+        setLocationStatusMessage(
+          language === 'te' ? 'లైవ్ జీపీఎస్ ద్వారా దూరం లెక్కించబడింది' : 'Calculated via Live GPS'
+        );
+      } else {
+        setLocationStatusMessage(
+          language === 'te' ? `${loc.district} ప్రాంతం ఆధారంగా లెక్కించబడింది` : `Calculated from ${loc.district} location`
+        );
+      }
+    } catch {
+      // Safe fallback handled in requestUserGeolocation
+    } finally {
+      setIsCalculatingDistance(false);
+    }
+  };
+
+  const handleSelectDistrict = (districtName: string) => {
+    const coords = AP_DISTRICT_LOCATIONS[districtName];
+    if (coords) {
+      const newLoc: LocationInfo = {
+        lat: coords.lat,
+        lng: coords.lng,
+        district: districtName,
+        source: 'manual',
+      };
+      setUserLocation(newLoc);
+      saveUserLocation(newLoc);
+      const dist = calculateHaversineDistance(coords.lat, coords.lng, farmLat, farmLng);
+      setDistanceKm(dist);
+      setLocationStatusMessage(
+        language === 'te' ? `${districtName} మార్కెట్ స్థానం ఎంచుకున్నారు` : `Selected ${districtName} location`
+      );
+      setShowDistrictPicker(false);
+    }
   };
 
   // Comparison logic
@@ -350,16 +377,27 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 rounded-lg border border-gray-200 hover:bg-green-50 text-green-700 text-xs transition-colors flex items-center gap-1 font-bold"
+                className="px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-emerald-50 text-emerald-700 text-xs transition-colors flex items-center gap-1 font-bold cursor-pointer"
                 title="Open in Google Maps App"
               >
+                <span>Google Maps</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
 
-            {/* Farm Location Card */}
-            <div className="rounded-2xl overflow-hidden border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-green-50/30 p-4">
-              <div className="flex items-center justify-between">
+            {/* Interactive Google Map Preview */}
+            <div className="rounded-2xl overflow-hidden border border-emerald-100 bg-gray-100 h-52 w-full relative shadow-inner">
+              <iframe
+                title="Google Maps Farm Location"
+                src={`https://maps.google.com/maps?q=${farmLat},${farmLng}&hl=en&z=13&output=embed`}
+                className="w-full h-full border-0"
+                loading="lazy"
+              />
+            </div>
+
+            {/* Farm Location Details & Action Buttons */}
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-green-50/30 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-gray-800">
                     {getTranslatedVillageName(listing.farmerVillage, language)}, Andhra Pradesh
@@ -368,41 +406,96 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                     {farmLat.toFixed(4)}° N, {farmLng.toFixed(4)}° E
                   </div>
                 </div>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{language === 'te' ? 'మ్యాప్‌లో చూడండి' : 'View on Maps'}</span>
-                  <ExternalLink className="w-3 h-3 opacity-80" />
-                </a>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${farmLat},${farmLng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>{language === 'te' ? 'దిశలు చూడండి' : 'Directions'}</span>
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{language === 'te' ? 'మ్యాప్‌లో చూడండి' : 'Open Map'}</span>
+                    <ExternalLink className="w-3 h-3 opacity-80" />
+                  </a>
+                </div>
               </div>
             </div>
 
             {/* GPS Distance Calculator */}
-            <div className="pt-1 flex items-center justify-between text-xs">
-              <div className="text-gray-600 font-medium">
-                {distanceKm !== null ? (
-                  <span className="text-emerald-700 font-bold">
-                    📍 {distanceKm} km away from your location
+            <div className="pt-2 border-t border-emerald-100/70 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-emerald-800 font-extrabold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
+                    <Navigation className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{distanceKm} km away from {userLocation.district || 'You'}</span>
                   </span>
-                ) : (
-                  <span className="text-gray-400">Logistics & Transport direct from farm</span>
-                )}
+                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
+                    {userLocation.source === 'gps' ? 'Live GPS' : userLocation.district}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowDistrictPicker(!showDistrictPicker)}
+                    className="text-[11px] font-bold text-gray-600 hover:text-emerald-700 bg-gray-50 hover:bg-gray-100 px-2 py-1 rounded-lg border border-gray-200 transition-colors cursor-pointer"
+                  >
+                    Change City ▾
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCalculateDistance}
+                    disabled={isCalculatingDistance}
+                    data-telugu-announce="పొలం దూరం లెక్కించే బటన్ నొక్కారు."
+                    className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center gap-1.5 px-3 py-1 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Navigation className={`w-3.5 h-3.5 ${isCalculatingDistance ? 'animate-spin' : ''}`} />
+                    <span>{isCalculatingDistance ? 'Locating...' : 'Distance to Me'}</span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCalculateDistance}
-                disabled={isCalculatingDistance}
-                data-telugu-announce="పొలం దూరం లెక్కించే బటన్ నొక్కారు."
-                className="text-xs font-bold text-green-700 hover:text-green-800 flex items-center gap-1 bg-green-50 hover:bg-green-100 px-2.5 py-1 rounded-lg border border-green-200 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Navigation className={`w-3 h-3 ${isCalculatingDistance ? 'animate-spin' : ''}`} />
-                <span>{isCalculatingDistance ? 'Calculating...' : 'Distance to Me'}</span>
-              </button>
+              {/* District quick selector */}
+              {showDistrictPicker && (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
+                  <div className="text-[11px] font-bold text-gray-700">
+                    Select your trading city / destination district in Andhra Pradesh:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(AP_DISTRICT_LOCATIONS).map((dist) => (
+                      <button
+                        key={dist}
+                        type="button"
+                        onClick={() => handleSelectDistrict(dist)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors cursor-pointer ${
+                          userLocation.district === dist
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-emerald-50 hover:text-emerald-800'
+                        }`}
+                      >
+                        {dist}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {locationStatusMessage && (
+                <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>{locationStatusMessage}</span>
+                </div>
+              )}
             </div>
           </div>
 

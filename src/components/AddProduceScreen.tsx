@@ -500,7 +500,7 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                 placeholder={t.locationPlaceholder || 'e.g. Guntur, Andhra Pradesh'}
               />
 
-              {/* Coordinates info pill & External Map link */}
+              {/* Coordinates info pill & Google Maps location link */}
               <div className="mt-1.5 flex items-center justify-between text-[11px]">
                 <div className="flex items-center gap-1 text-gray-500">
                   <MapPin className="w-3 h-3 text-green-600" />
@@ -519,9 +519,10 @@ export const AddProduceScreen: React.FC<AddProduceScreenProps> = ({
                   href={`https://www.google.com/maps/search/?api=1&query=${farmCoords.lat},${farmCoords.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-green-700 hover:text-green-800 font-bold flex items-center gap-1 cursor-pointer"
+                  className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  title="View farm location on Google Maps"
                 >
-                  <span>View on Maps</span>
+                  <span>Google Maps</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>

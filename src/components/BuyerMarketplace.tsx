@@ -17,17 +17,14 @@ import {
   Compass,
   ExternalLink,
 } from 'lucide-react';
-
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
+import {
+  calculateHaversineDistance,
+  getInitialUserLocation,
+  requestUserGeolocation,
+  saveUserLocation,
+  AP_DISTRICT_LOCATIONS,
+  LocationInfo,
+} from '../utils/locationHelper';
 
 interface BuyerMarketplaceProps {
   language: Language;
@@ -49,30 +46,37 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'recommended' | 'price-low' | 'price-high' | 'quantity' | 'nearest'>('recommended');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
-  const [buyerLocation, setBuyerLocation] = useState<{ lat: number; lng: number; district?: string } | null>(
-    user.lat && user.lng ? { lat: user.lat, lng: user.lng, district: user.village } : null
-  );
+  const [buyerLocation, setBuyerLocation] = useState<LocationInfo>(() => getInitialUserLocation(user));
   const [isLocatingBuyer, setIsLocatingBuyer] = useState(false);
+  const [showDistrictModal, setShowDistrictModal] = useState(false);
 
   const t = marketplaceTranslations[language] || marketplaceTranslations.en;
 
-  const handleRequestLocationAccess = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
+  const handleRequestLocationAccess = async () => {
     setIsLocatingBuyer(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setBuyerLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setIsLocatingBuyer(false);
-      },
-      (err) => {
-        console.warn('Location access error:', err);
-        setIsLocatingBuyer(false);
-      },
-      { timeout: 8000 }
-    );
+    try {
+      const loc = await requestUserGeolocation(user);
+      setBuyerLocation(loc);
+    } catch {
+      // Handled cleanly inside requestUserGeolocation
+    } finally {
+      setIsLocatingBuyer(false);
+    }
+  };
+
+  const handleSelectDistrict = (districtName: string) => {
+    const coords = AP_DISTRICT_LOCATIONS[districtName];
+    if (coords) {
+      const newLoc: LocationInfo = {
+        lat: coords.lat,
+        lng: coords.lng,
+        district: districtName,
+        source: 'manual',
+      };
+      setBuyerLocation(newLoc);
+      saveUserLocation(newLoc);
+      setShowDistrictModal(false);
+    }
   };
 
   // Filter and search
@@ -257,28 +261,57 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
           </div>
 
           {/* Google Maps View toggle & Location Access */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 relative">
             <button
               type="button"
               onClick={handleRequestLocationAccess}
               disabled={isLocatingBuyer}
               data-telugu-announce="గూగుల్ మ్యాప్స్ జీపీఎస్ బటన్ నొక్కారు."
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                buyerLocation
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-              }`}
-              title="Access Google Maps GPS Location"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs"
+              title="Detect your live location via Google Maps GPS"
             >
               <Navigation className={`w-3.5 h-3.5 ${isLocatingBuyer ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
               <span>
                 {isLocatingBuyer
                   ? 'Accessing GPS...'
-                  : buyerLocation
-                  ? `Near ${buyerLocation.district || 'You'}`
-                  : 'Google Maps GPS'}
+                  : `Near ${buyerLocation.district || 'You'}`}
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowDistrictModal(!showDistrictModal)}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors cursor-pointer"
+              title="Select trading district"
+            >
+              <span>{buyerLocation.district}</span>
+              <span className="ml-1 text-gray-400">▾</span>
+            </button>
+
+            {/* District dropdown modal */}
+            {showDistrictModal && (
+              <div className="absolute right-0 top-11 z-30 w-64 p-3 bg-white rounded-2xl shadow-xl border border-gray-200 space-y-2">
+                <div className="text-xs font-bold text-gray-800">
+                  Select your district:
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                  {Object.keys(AP_DISTRICT_LOCATIONS).map((dist) => (
+                    <button
+                      key={dist}
+                      type="button"
+                      onClick={() => handleSelectDistrict(dist)}
+                      className={`px-2 py-1 text-[11px] rounded-lg text-left font-medium border transition-colors cursor-pointer ${
+                        buyerLocation.district === dist
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-gray-50 hover:bg-emerald-50 text-gray-700 border-gray-200'
+                      }`}
+                    >
+                      {dist}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200">
               <button
@@ -312,23 +345,37 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
         </div>
       </div>
 
-      {/* View Content: Farm Network Directory vs Grid Cards */}
+      {/* View Content: Google Maps Directory vs Grid Cards */}
       {viewMode === 'map' ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span className="font-semibold text-gray-700">
               {language === 'te'
-                ? 'ఆంధ్రప్రదేశ్ APMC రైతు స్థానాలు & నెట్‌వర్క్'
+                ? 'ఆంధ్రప్రదేశ్ APMC రైతు స్థానాలు (గూగుల్ మ్యాప్స్)'
                 : language === 'hi'
-                ? 'आंध्र प्रदेश APMC किसान स्थान और नेटवर्क'
-                : 'Andhra Pradesh APMC Farm Network & Locations'}{' '}
+                ? 'आंध्र प्रदेश APMC किसान स्थान (गूगल मैप्स)'
+                : 'Andhra Pradesh APMC Farm Locations on Google Maps'}{' '}
               ({filteredProduce.length} {language === 'te' ? 'పొలాలు' : 'farms'})
             </span>
             <span className="text-emerald-700 font-bold">
               {buyerLocation
-                ? `📍 Centered near your GPS Location`
+                ? `📍 Centered near your Google Maps GPS Location`
                 : 'Showing all registered farm districts'}
             </span>
+          </div>
+
+          {/* Interactive Google Map Preview for Farms */}
+          <div className="rounded-2xl overflow-hidden border border-emerald-200 bg-gray-100 h-64 w-full relative shadow-xs">
+            <iframe
+              title="Google Maps Andhra Pradesh APMC Farms"
+              src={
+                buyerLocation
+                  ? `https://maps.google.com/maps?q=${buyerLocation.lat},${buyerLocation.lng}&hl=en&z=11&output=embed`
+                  : `https://maps.google.com/maps?q=16.3067,80.4365&hl=en&z=9&output=embed`
+              }
+              className="w-full h-full border-0"
+              loading="lazy"
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -378,7 +425,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({
                       href={`https://www.google.com/maps/search/?api=1&query=${farmLat},${farmLng}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      className="p-2 rounded-xl border border-gray-200 hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                       title="Open farm location in Google Maps"
                     >
                       <MapPin className="w-3.5 h-3.5 text-emerald-600" />

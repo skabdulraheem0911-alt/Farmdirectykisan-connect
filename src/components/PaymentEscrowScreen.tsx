@@ -282,9 +282,11 @@ export const PaymentEscrowScreen: React.FC<PaymentEscrowScreenProps> = ({
         {paymentMethod === 'netbanking' && (
           <div className="pt-2">
             <select className="w-full h-11 px-3 rounded-xl border border-gray-200 font-medium text-sm text-gray-900 cursor-pointer">
-              <option>Kerala Bank (Kerala State Co-operative Bank)</option>
-              <option>State Bank of India (SBI)</option>
-              <option>Federal Bank</option>
+              <option>Andhra Pradesh State Co-operative Bank (APCOB)</option>
+              <option>State Bank of India (SBI) - Andhra Pradesh</option>
+              <option>Andhra Pragathi Grameena Bank (APGB)</option>
+              <option>Saptagiri Grameena Bank</option>
+              <option>Union Bank of India (Andhra Bank)</option>
               <option>Canara Bank</option>
               <option>HDFC Bank</option>
             </select>
